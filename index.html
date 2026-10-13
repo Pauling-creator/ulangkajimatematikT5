@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Interaktif Matematik T5 - SMK Perempuan Methodist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        
+        .bg-school-blue { background-color: #1e3a8a; } 
+        .text-school-blue { color: #1e3a8a; }
+        .bg-school-gold { background-color: #d97706; } 
+        .text-school-gold { color: #d97706; }
+        
+        .fade-in { animation: fadeIn 0.4s ease-in; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .btn-hover-effect {
+            transition: all 0.2s ease;
+        }
+        .btn-hover-effect:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .option-btn {
+            transition: all 0.2s ease;
+            border: 2px solid #e5e7eb;
+        }
+        .option-btn:hover:not(:disabled) {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .option-correct {
+            background-color: #d1fae5 !important;
+            border-color: #10b981 !important;
+            color: #065f46 !important;
+        }
+        .option-wrong {
+            background-color: #fee2e2 !important;
+            border-color: #ef4444 !important;
+            color: #991b1b !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Kontena Utama Aplikasi -->
+    <div id="app" class="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden relative min-h-[550px] flex flex-col">
+        <!-- Pengepala Aplikasi -->
+        <header class="bg-school-blue text-white p-6 text-center shadow-md relative z-10">
+            <img src="https://i.postimg.cc/BQ11syJk/logo-mgss-3d-removebg-preview.png" alt="Logo SMK Perempuan Methodist Melaka" class="h-32 w-auto mx-auto mb-4 drop-shadow-2xl hover:scale-105 transition-transform duration-300">
+            <h1 class="text-2xl font-bold tracking-wide mt-3">CABARAN MATEMATIK TINGKATAN 5</h1>
+            <h2 class="text-sm font-light opacity-90">Silibus KSSM (Bab 1 - Bab 7)</h2>
+            <p class="text-yellow-400 font-semibold mt-2 tracking-widest text-xs">LIVE WORTHILY</p>
+        </header>
+
+        <!-- Kawasan Dinamik -->
+        <main id="app-content" class="flex-grow p-6 flex flex-col justify-center items-center relative">
+            <div id="loader" class="text-school-blue flex flex-col items-center">
+                <i class="fas fa-spinner fa-spin fa-3x mb-4"></i>
+                <p>Memuatkan sistem...</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Notifikasi -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full text-center fade-in">
+            <h3 id="modal-title" class="text-lg font-bold text-gray-800 mb-2">Mesej</h3>
+            <p id="modal-message" class="text-gray-600 mb-6">Kandungan mesej di sini.</p>
+            <button onclick="closeModal()" class="bg-school-blue text-white px-6 py-2 rounded-lg font-semibold w-full hover:bg-blue-800 transition">OK</button>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const appId = 'math-t5-mgss'; 
+    const firebaseConfigStr = '{}'; 
+    let firebaseConfig = {};
+    
+    try {
+        firebaseConfig = JSON.parse(firebaseConfigStr);
+    } catch (e) {
+        firebaseConfig = { projectId: "dummy-project" }; 
+    }
+
+    let app, db, auth;
+    let isFirebaseReady = false;
+
+    if (firebaseConfig.projectId) {
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch(e) {}
+    }
+
+    // State Aplikasi
+    const State = {
+        view: 'role-select', 
+        student: { name: '', className: '', teacherEmail: '' },
+        teacher: { email: '' },
+        currentLevel: 'Level 1',
+        currentQIndex: 0,
+        score: 0,
+        isAnswered: false,
+    };
+
+    // Bank Soalan (Tingkatan 5: 3 Soalan per Bab mengikut Level)
+    const QuizData = {
+        "Level 1": [
+            // [Bab 1]
+            { bab: "Bab 1: Ubahan", question: "Diberi y berubah secara langsung dengan x. Jika y = 10 apabila x = 2, cari nilai pemalar, k.", options: ["5", "12", "8", "20"], answerIndex: 0, solution: "y = kx. Gantikan y=10, x=2:<br>10 = k(2) -> k = 5." },
+            { bab: "Bab 1: Ubahan", question: "Hubungan 'p berubah secara songsang dengan q' boleh ditulis sebagai:", options: ["p ∝ q", "p ∝ 1/q", "p = kq", "p = q/k"], answerIndex: 1, solution: "Ubahan songsang ditulis menggunakan simbol ∝ dengan 1/pembolehubah. Maka, p ∝ 1/q." },
+            { bab: "Bab 1: Ubahan", question: "Bagi ubahan bergabung, w ∝ x / y². Nyatakan persamaannya.", options: ["w = kx / y²", "w = k(x - y²)", "w = k + x/y²", "w = xy² / k"], answerIndex: 0, solution: "Tukarkan simbol ∝ kepada '=' dengan menambah pemalar k di bahagian pengangka. w = kx / y²." },
+            
+            // [Bab 2]
+            { bab: "Bab 2: Matriks", question: "Diberi matriks A = [2  3] dan B = [1  4]. Cari matriks A + B.", options: ["[3  7]", "[1  -1]", "[2  12]", "[3  12]"], answerIndex: 0, solution: "Untuk menambah dua matriks, tambahkan unsur yang sepadan:<br>[ (2+1)  (3+4) ] = [3  7]." },
+            { bab: "Bab 2: Matriks", question: "Pilih matriks identiti peringkat 2x2.", options: ["[0 0 ; 0 0]", "[1 1 ; 1 1]", "[1 0 ; 0 1]", "[0 1 ; 1 0]"], answerIndex: 2, solution: "Matriks identiti (I) bagi 2x2 mempunyai pepenjuru utama bernilai 1 dan yang lain 0. I = [1 0 ; 0 1]." },
+            { bab: "Bab 2: Matriks", question: "Hitung 3[-2  5].", options: ["[1  8]", "[-6  15]", "[-2  15]", "[-6  5]"], answerIndex: 1, solution: "Pendaraban skalar: Darabkan nombor 3 dengan setiap unsur di dalam matriks.<br>3(-2) = -6 dan 3(5) = 15.<br>Jawapan: [-6  15]." },
+            
+            // [Bab 3]
+            { bab: "Bab 3: Insurans", question: "Apakah tujuan utama seseorang membeli insurans?", options: ["Mendapatkan keuntungan", "Memindahkan risiko kewangan kepada syarikat insurans", "Mengurangkan cukai tahunan", "Menyimpan wang untuk hari tua"], answerIndex: 1, solution: "Tujuan utama insurans ialah untuk memberikan perlindungan kewangan dengan memindahkan risiko kerugian daripada individu kepada syarikat insurans." },
+            { bab: "Bab 3: Insurans", question: "Apakah yang dimaksudkan dengan 'Deduktibel'?", options: ["Jumlah bayaran yang ditanggung syarikat insurans", "Jumlah yuran bulanan polisi", "Jumlah kerugian yang ditanggung oleh pemegang polisi", "Nilai muka keseluruhan polisi"], answerIndex: 2, solution: "Deduktibel ialah jumlah wang yang perlu dibayar oleh pemegang polisi dari poket sendiri sebelum syarikat insurans membayar baki kos kerugian." },
+            { bab: "Bab 3: Insurans", question: "Polisi insurans motor Komprehensif melindungi perkara berikut, KECUALI:", options: ["Kerosakan kereta pihak ketiga", "Kecederaan atau kematian pihak ketiga", "Kerosakan kenderaan sendiri", "Kecelakaan peribadi (kecederaan) pemandu sendiri"], answerIndex: 3, solution: "Insurans kenderaan (walaupun komprehensif) biasanya tidak meliputi kecederaan/kematian pemandu sendiri. Ia memerlukan polisi pelindungan tambahan." },
+            
+            // [Bab 4]
+            { bab: "Bab 4: Percukaian", question: "Cukai yang dikenakan ke atas pemilik harta tanah (seperti rumah kediaman) oleh PBT dikenali sebagai:", options: ["Cukai Pendapatan", "Cukai Jalan", "Cukai Pintu (Taksiran)", "Cukai Jualan"], answerIndex: 2, solution: "Cukai pintu atau cukai taksiran ialah cukai yang dikutip oleh Pihak Berkuasa Tempatan (PBT) ke atas pemilik rumah/harta tanah." },
+            { bab: "Bab 4: Percukaian", question: "Jabatan manakah yang bertanggungjawab mengutip Cukai Pendapatan di Malaysia?", options: ["LHDN", "JPJ", "Kastam Diraja Malaysia", "Pihak Berkuasa Tempatan"], answerIndex: 0, solution: "Lembaga Hasil Dalam Negeri (LHDN) ialah agensi kerajaan yang bertanggungjawab mengurus dan memungut cukai pendapatan." },
+            { bab: "Bab 4: Percukaian", question: "Bagaimanakah Pendapatan Bercukai dikira?", options: ["Jumlah Pendapatan + Zakat", "Jumlah Pendapatan - Pengecualian Cukai - Pelepasan Cukai", "Jumlah Pendapatan x Kadar Cukai", "Jumlah Pendapatan - PCB"], answerIndex: 1, solution: "Pendapatan Bercukai = Jumlah Pendapatan Tahunan - Pengecualian Cukai - Pelepasan Cukai." },
+            
+            // [Bab 5]
+            { bab: "Bab 5: Kekongruenan & Pembesaran", question: "Dua poligon adalah kongruen jika...", options: ["Bentuknya sama tetapi saiz berbeza", "Sisi sepadan dan sudut sepadan adalah sama", "Luasnya sama tetapi bentuk berbeza", "Bilangan sisinya sama"], answerIndex: 1, solution: "Syarat kongruen: Semua panjang sisi yang sepadan dan semua sudut yang sepadan mesti sama nilainya." },
+            { bab: "Bab 5: Kekongruenan & Pembesaran", question: "Dalam suatu pembesaran, imej lebih kecil dari objek jika faktor skala (k)...", options: ["k > 1", "k < -1", "0 < k < 1", "k = 1"], answerIndex: 2, solution: "Jika faktor skala berada di antara 0 dan 1 (pecahan positif seperti 1/2), imej yang terhasil adalah lebih kecil daripada objek." },
+            { bab: "Bab 5: Kekongruenan & Pembesaran", question: "Cari koordinat imej bagi titik P(2, 3) di bawah translasi T = (4, -1).", options: ["(6, 2)", "(-2, 4)", "(8, -3)", "(6, -2)"], answerIndex: 0, solution: "x baharu = 2 + 4 = 6<br>y baharu = 3 + (-1) = 2<br>Imej ialah (6, 2)." },
+            
+            // [Bab 6]
+            { bab: "Bab 6: Graf Fungsi Trigonometri", question: "Nyatakan nilai bagi sin 30°.", options: ["0.5", "0.866", "1.0", "0.707"], answerIndex: 0, solution: "Berdasarkan segi tiga sudut tegak khas atau kalkulator, nilai bagi sin 30° ialah 1/2 atau 0.5." },
+            { bab: "Bab 6: Graf Fungsi Trigonometri", question: "Bagi sudut 150°, apakah sudut rujukan sepadan (α)?", options: ["150°", "30°", "60°", "210°"], answerIndex: 1, solution: "Sudut 150° berada di Sukuan II.<br>Sudut rujukan α = 180° - 150° = 30°." },
+            { bab: "Bab 6: Graf Fungsi Trigonometri", question: "Graf yang bermula pada titik (0,0), mempunyai nilai maksimum 1 dan minimum -1 ialah graf...", options: ["y = kos x", "y = tan x", "y = sin x", "y = x²"], answerIndex: 2, solution: "Graf y = sin x sentiasa bermula dan menyilang asalan (0,0) manakala graf y = kos x bermula di (0,1)." },
+            
+            // [Bab 7]
+            { bab: "Bab 7: Sukatan Serakan Data Terkumpul", question: "Graf manakah yang menghubungkan titik tengah setiap kelas dengan kekerapannya?", options: ["Ogif", "Histogram", "Poligon Kekerapan", "Carta Pai"], answerIndex: 2, solution: "Poligon kekerapan dilukis dengan memplotkan kekerapan melawan titik tengah selang kelas, dan menyambungkan titik-titik tersebut." },
+            { bab: "Bab 7: Sukatan Serakan Data Terkumpul", question: "Bagi selang kelas 20 - 29, apakah nilai titik tengahnya?", options: ["24.5", "25", "24", "29.5"], answerIndex: 0, solution: "Titik tengah = (Had bawah + Had atas) / 2<br>= (20 + 29) / 2 = 24.5." },
+            { bab: "Bab 7: Sukatan Serakan Data Terkumpul", question: "Saiz selang kelas boleh dikira menggunakan formula:", options: ["Had atas - Had bawah", "Sempadan atas - Sempadan bawah", "Sempadan atas + Sempadan bawah", "Had atas + Had bawah"], answerIndex: 1, solution: "Saiz selang kelas yang tepat mesti dikira menggunakan sempadan: Saiz = Sempadan atas - Sempadan bawah." }
+        ],
+        "Level 2": [
+            // [Bab 1]
+            { bab: "Bab 1: Ubahan", question: "y berubah secara songsang dengan x. Diberi y = 2 apabila x = 3. Hitung nilai y apabila x = 6.", options: ["1", "1/2", "4", "8"], answerIndex: 0, solution: "y = k/x -> 2 = k/3 -> k = 6.<br>Persamaan: y = 6/x.<br>Bila x = 6, y = 6/6 = 1." },
+            { bab: "Bab 1: Ubahan", question: "w berubah secara langsung dengan p². Diberi w=12 bila p=2. Cari nilai w bila p=4.", options: ["24", "36", "48", "60"], answerIndex: 2, solution: "w = kp² -> 12 = k(2)² -> 12 = 4k -> k = 3.<br>Persamaan: w = 3p².<br>Bila p=4, w = 3(16) = 48." },
+            { bab: "Bab 1: Ubahan", question: "F berubah secara langsung dengan m dan secara songsang dengan d². Diberi m=10, d=2, F=5. Tuliskan formula F.", options: ["F = 2m / d²", "F = 5m / d", "F = m / d²", "F = 10m / d²"], answerIndex: 0, solution: "F = km/d² -> 5 = k(10)/2² -> 5 = 10k/4 -> k=2.<br>Maka, F = 2m / d²." },
+            
+            // [Bab 2]
+            { bab: "Bab 2: Matriks", question: "Cari penentu (determinant) bagi matriks M = [4  2 ; 1  3].", options: ["14", "10", "12", "-10"], answerIndex: 1, solution: "Penentu = (ad - bc)<br>= (4)(3) - (2)(1)<br>= 12 - 2 = 10." },
+            { bab: "Bab 2: Matriks", question: "Diberi matriks P = [2  x] dan Q = [3 ; 1]. Jika PQ = [10], apakah nilai x?", options: ["2", "4", "6", "8"], answerIndex: 1, solution: "Pendaraban Baris x Lajur:<br>(2)(3) + (x)(1) = 10<br>6 + x = 10 -> x = 4." },
+            { bab: "Bab 2: Matriks", question: "Diberi matriks songsang bagi M = [2  1 ; 5  3] ialah 1/k [3  -1 ; -5  2]. Cari k.", options: ["1", "-1", "2", "6"], answerIndex: 0, solution: "k ialah penentu matriks, k = ad - bc.<br>k = (2)(3) - (1)(5) = 6 - 5 = 1." },
+            
+            // [Bab 3]
+            { bab: "Bab 3: Insurans", question: "Polisi motor ada deduktibel RM400. Kos kemalangan RM2,000. Berapakah pampasan syarikat insurans?", options: ["RM2,000", "RM400", "RM2,400", "RM1,600"], answerIndex: 3, solution: "Pampasan = Kerugian - Deduktibel.<br>Pampasan = RM2,000 - RM400 = RM1,600." },
+            { bab: "Bab 3: Insurans", question: "Ali beli insurans perubatan dengan ko-insurans 80/20. Kos perubatannya RM10,000. Tiada deduktibel. Berapa yang ditanggung Ali?", options: ["RM2,000", "RM8,000", "RM10,000", "RM0"], answerIndex: 0, solution: "Peratusan ko-insurans pemegang polisi ialah 20%.<br>Kos tanggungan Ali = 20% x RM10,000 = RM2,000." },
+            { bab: "Bab 3: Insurans", question: "Bagi insurans harta (ko-insurans), apa terjadi jika nilai diinsuranskan kurang daripada jumlah yang disyaratkan?", options: ["Polisi terbatal", "Menerima pampasan penuh", "Dikenakan penalti (Pampasan < Kerugian)", "Deduktibel dimansuhkan"], answerIndex: 2, solution: "Jika perlindungan dibeli kurang dari had ko-insurans, pemegang polisi perlu berkongsi kerugian (dikenakan penalti insurans terkurang)." },
+            
+            // [Bab 4]
+            { bab: "Bab 4: Percukaian", question: "Pendapatan tahunan RM60,000. Pelepasan cukai bernilai RM12,000. Apakah pendapatan bercukai?", options: ["RM72,000", "RM48,000", "RM60,000", "RM12,000"], answerIndex: 1, solution: "Pendapatan Bercukai = Jumlah Pendapatan - Pelepasan Cukai.<br>= RM60,000 - RM12,000 = RM48,000." },
+            { bab: "Bab 4: Percukaian", question: "Cukai dikira sebagai RM1,500. Zakat dibayar RM400. Berapakah cukai sebenar perlu dibayar?", options: ["RM1,900", "RM1,500", "RM1,100", "RM400"], answerIndex: 2, solution: "Zakat adalah rebat cukai yang ditolak secara terus dari cukai akhir.<br>Cukai perlu bayar = RM1,500 - RM400 = RM1,100." },
+            { bab: "Bab 4: Percukaian", question: "Cukai pintu: Kadar 4%. Nilai tahunan rumah RM12,000. Berapakah cukai pintu untuk setengah tahun?", options: ["RM480", "RM240", "RM120", "RM600"], answerIndex: 1, solution: "Cukai setahun = 4% x RM12,000 = RM480.<br>Untuk setengah tahun = RM480 / 2 = RM240." },
+            
+            // [Bab 5]
+            { bab: "Bab 5: Kekongruenan & Pembesaran", question: "Dalam pembesaran faktor skala k=3, jika luas objek 4 cm², berapakah luas imej?", options: ["12 cm²", "7 cm²", "36 cm²", "16 cm²"], answerIndex: 2, solution: "Luas Imej = k² x Luas Objek<br>= (3)² x 4<br>= 9 x 4 = 36 cm²." },
+            { bab: "Bab 5: Kekongruenan & Pembesaran", question: "Titik K(3, 1) dipantulkan pada paksi-x. Apakah koordinat imej K'?", options: ["(-3, 1)", "(3, -1)", "(-3, -1)", "(1, 3)"], answerIndex: 1, solution: "Pantulan pada paksi-x mengekalkan nilai koordinat-x, tetapi menukar tanda koordinat-y. K(3, 1) -> K'(3, -1)." },
+            { bab: "Bab 5: Kekongruenan & Pembesaran", question: "Luas imej 50 m², luas objek 2 m². Apakah nilai faktor skala, k (jika k positif)?", options: ["5", "10", "25", "2.5"], answerIndex: 0, solution: "k² = Luas Imej / Luas Objek = 50 / 2 = 25.<br>k = √25 = 5." },
+            
+            // [Bab 6]
+            { bab: "Bab 6: Graf Fungsi Trigonometri", question: "Sukuan manakah kedudukan sudut θ jika sin θ > 0 dan kos θ < 0?", options: ["Sukuan I", "Sukuan II", "Sukuan III", "Sukuan IV"], answerIndex: 1, solution: "Guna S.T.K. Sin positif (+) di Sukuan I & II. Kos negatif (-) di Sukuan II & III. Persilangan = Sukuan II." },
+            { bab: "Bab 6: Graf Fungsi Trigonometri", question: "Nyatakan tempoh bagi fungsi y = kos 2x.", options: ["360°", "180°", "90°", "2°"], answerIndex: 1, solution: "Bagi fungsi y = a kos bx, tempohnya = 360° / b.<br>Oleh kerana b = 2, Tempoh = 360° / 2 = 180°." },
+            { bab: "Bab 6: Graf Fungsi Trigonometri", question: "Diberi tan θ = -1 dan 0° ≤ θ ≤ 360°. Cari nilai θ.", options: ["135° dan 315°", "45° dan 225°", "135° dan 225°", "315° dan 45°"], answerIndex: 0, solution: "Sudut rujukan = 45°. Tangen negatif di Sukuan II (180-45=135°) dan Sukuan IV (360-45=315°)." },
+            
+            // [Bab 7]
+            { bab: "Bab 7: Sukatan Serakan Data Terkumpul", question: "Min bagi set data {2, 4, 6, 8, 10} ialah 6. Jika setiap nombor didarab 2, apakah min baharu?", options: ["6", "12", "8", "24"], answerIndex: 1, solution: "Jika setiap pencerapan didarab dengan k, min baharu juga akan didarab dengan k. Min baharu = 6 x 2 = 12." },
+            { bab: "Bab 7: Sukatan Serakan Data Terkumpul", question: "Varians bagi suatu data ialah 16. Berapakah sisihan piawai?", options: ["4", "256", "8", "32"], answerIndex: 0, solution: "Sisihan piawai (σ) ialah punca kuasa dua varians (σ²).<br>σ = √16 = 4." },
+            { bab: "Bab 7: Sukatan Serakan Data Terkumpul", question: "Apakah kegunaan Ogif (kekerapan longgokan)?", options: ["Mengira nilai min data", "Menentukan nilai kuartil dan persentil", "Mencari mod secara visual", "Melihat frekuensi titik tengah"], answerIndex: 1, solution: "Ogif amat berguna untuk mencari Median, Kuartil Pertama, Kuartil Ketiga dan peratusan (persentil) pada paksi-y." }
+        ],
+        "Level 3": [
+            // [Bab 1]
+            { bab: "Bab 1: Ubahan", question: "p berubah langsung dengan q dan songsang dengan punca r. p=4, q=2, r=4. Ungkapkan p.", options: ["p = 4q / √r", "p = 2q / √r", "p = q / (4√r)", "p = 4q√r"], answerIndex: 0, solution: "p = (kq)/(√r) -> 4 = (k*2)/(√4) -> 4 = 2k/2 -> k=4.<br>Persamaan: p = 4q / √r." },
+            { bab: "Bab 1: Ubahan", question: "Masa (t) berubah songsang dengan bilangan pekerja (n). 4 pekerja siap 6 jam. Berapa pekerja diperlukan untuk siap 3 jam?", options: ["2", "6", "8", "12"], answerIndex: 2, solution: "t = k/n -> 6 = k/4 -> k = 24.<br>Jika t=3, 3 = 24/n -> n = 24/3 = 8 pekerja." },
+            { bab: "Bab 1: Ubahan", question: "Diberi y ∝ x². Jika nilai x bertambah 20%, berapakah peratusan pertambahan bagi y?", options: ["20%", "40%", "44%", "100%"], answerIndex: 2, solution: "x baharu = 1.2x.<br>y baharu ∝ (1.2x)² = 1.44x².<br>Pertambahan dari 1.0 ke 1.44 bermaksud +44%." },
+            
+            // [Bab 2]
+            { bab: "Bab 2: Matriks", question: "Selesaikan untuk x: [2  1 ; 3 -1][x ; y] = [8 ; 2].", options: ["2", "1", "-2", "3"], answerIndex: 0, solution: "Jadikan persamaan linear: 2x+y=8 dan 3x-y=2. Tambahkan: 5x=10 -> x=2." },
+            { bab: "Bab 2: Matriks", question: "Matriks M = [k  -3 ; -2  6] tiada matriks songsang. Apakah nilai k?", options: ["1", "-1", "2", "3"], answerIndex: 0, solution: "Tiada songsang bermaksud penentu = 0.<br>(k)(6) - (-3)(-2) = 0<br>6k - 6 = 0 -> 6k = 6 -> k = 1." },
+            { bab: "Bab 2: Matriks", question: "Jika A = [1 2 ; 3 4], apakah A²?", options: ["[1 4 ; 9 16]", "[7 10 ; 15 22]", "[4 6 ; 12 14]", "[3 4 ; 5 6]"], answerIndex: 1, solution: "A² = A × A.<br>B1L1: (1)(1)+(2)(3)=7<br>B1L2: (1)(2)+(2)(4)=10<br>B2L1: (3)(1)+(4)(3)=15<br>B2L2: (3)(2)+(4)(4)=22." },
+            
+            // [Bab 3]
+            { bab: "Bab 3: Insurans", question: "Deduktibel RM1,000, ko-insurans 80/20. Kos rawatan RM51,000. Kira jumlah dibayar oleh pemegang polisi.", options: ["RM11,000", "RM10,000", "RM1,000", "RM9,000"], answerIndex: 0, solution: "Tolak deduktibel: RM51k - RM1k = RM50k.<br>Tanggungan pemegang (20%): 20% x RM50k = RM10k.<br>Jumlah tanggungan = RM1k + RM10k = RM11,000." },
+            { bab: "Bab 3: Insurans", question: "Rumah RM250k. Ko-insurans 80%. Pemilik beli insurans RM150k. Kebakaran rugi RM40k. Berapa pampasan diterima? (Tiada deduktibel)", options: ["RM40,000", "RM30,000", "RM150,000", "RM24,000"], answerIndex: 1, solution: "Insurans disyaratkan = 80% x RM250k = RM200k.<br>Pampasan = (Dibeli / Disyaratkan) x Kerugian.<br>= (150k/200k) x 40k = 3/4 x 40k = RM30,000." },
+            { bab: "Bab 3: Insurans", question: "Kadar premium insurans hayat tahunan bergantung terutamanya pada:", options: ["Pekerjaan", "Umur, jantina dan status merokok", "Jenis kereta dipandu", "Jumlah pendapatan"], answerIndex: 1, solution: "Bagi insurans hayat, risiko diukur melalui umur (semakin tua makin mahal), jantina, dan gaya hidup (seperti merokok)." },
+            
+            // [Bab 4]
+            { bab: "Bab 4: Percukaian", question: "Pendapatan bercukai RM48,500. Cukai RM35k pertama ialah RM600, baki 8%. Zakat RM300. Kira cukai perlu bayar.", options: ["RM1,680", "RM1,380", "RM1,080", "RM780"], answerIndex: 1, solution: "Baki = 48,500 - 35,000 = RM13,500.<br>Cukai baki = 8% x 13,500 = RM1,080.<br>Total = 600 + 1080 = RM1,680.<br>Tolak zakat (RM300) = RM1,380." },
+            { bab: "Bab 4: Percukaian", question: "Potongan Cukai Bulanan (PCB) Amin RM100. Cukai tahunan sebenar RM1,050. Apakah tindakan LHDN?", options: ["Minta RM150 tambahan", "Pulangkan RM150", "Pulangkan RM100", "Minta RM1,050"], answerIndex: 1, solution: "PCB dibayar setahun = RM100 x 12 = RM1,200.<br>Cukai sebenar RM1,050.<br>Lebihan dibayar = 1,200 - 1,050 = RM150 (LHDN akan pulangkan)." },
+            { bab: "Bab 4: Percukaian", question: "Adakah pendapatan dari dividen simpanan ASB dikenakan cukai pendapatan?", options: ["Ya, kadar 8%", "Ya, bergantung kurungan", "Tidak, ia dikecualikan", "Hanya jika melebih RM100k"], answerIndex: 2, solution: "Dividen seperti ASB dan Tabung Haji merupakan pendapatan yang dikecualikan cukai di Malaysia." },
+            
+            // [Bab 5]
+            { bab: "Bab 5: Kekongruenan & Pembesaran", question: "Luas objek 25 m². Dibesarkan k=2. Berapakah luas rantau berlorek antara imej dan objek jika objek di dalam imej?", options: ["100 m²", "75 m²", "50 m²", "25 m²"], answerIndex: 1, solution: "Luas imej = 2² x 25 = 100.<br>Rantau berlorek = Luas Imej - Luas Objek.<br>= 100 - 25 = 75 m²." },
+            { bab: "Bab 5: Kekongruenan & Pembesaran", question: "Transformasi isometri yang sentiasa mengekalkan orientasi (arah) objek ialah...", options: ["Putaran", "Translasi", "Pantulan", "Pembesaran"], answerIndex: 1, solution: "Translasi menggerakkan objek tanpa mengubah orientasi (arah depannya sentiasa sama). Pantulan mengubah orientasi kiri/kanan." },
+            { bab: "Bab 5: Kekongruenan & Pembesaran", question: "Titik P(1,1) diputarkan 90° ikut arah jam pada asalan (0,0). Imejnya P' ialah:", options: ["(-1, 1)", "(1, -1)", "(-1, -1)", "(1, 1)"], answerIndex: 1, solution: "Petua putaran 90° ikut jam pada asalan (0,0): (x, y) menjadi (y, -x). Maka P(1, 1) -> (1, -1)." },
+            
+            // [Bab 6]
+            { bab: "Bab 6: Graf Fungsi Trigonometri", question: "Selesaikan 2 sin x - 1 = 0 bagi 0° ≤ x ≤ 360°.", options: ["30°, 150°", "30°, 330°", "60°, 120°", "150°, 210°"], answerIndex: 0, solution: "2 sin x = 1 -> sin x = 0.5.<br>Sudut rujukan = 30°.<br>Sin positif (+) di Sukuan I (30°) dan II (180°-30°=150°)." },
+            { bab: "Bab 6: Graf Fungsi Trigonometri", question: "Diberi fungsi y = 3 kos 2x + 1. Apakah nilai maksimum dan minimum y?", options: ["Mak=3, Min=1", "Mak=4, Min=-2", "Mak=4, Min=1", "Mak=2, Min=-2"], answerIndex: 1, solution: "Amplitud = 3. Graf asalnya berayun dari 3 hingga -3.<br>Anjakan paksi-y = +1.<br>Maks = 3 + 1 = 4. Min = -3 + 1 = -2." },
+            { bab: "Bab 6: Graf Fungsi Trigonometri", question: "Ketinggian roket ialah h(t) = 50 sin (30t)° . Berapa tingginya pada t=3 saat?", options: ["0", "50", "25", "43.3"], answerIndex: 1, solution: "Gantikan t=3: h(3) = 50 sin(30*3)° = 50 sin(90°).<br>Nilai sin 90° = 1. Maka 50(1) = 50." },
+            
+            // [Bab 7]
+            { bab: "Bab 7: Sukatan Serakan Data Terkumpul", question: "Min varians set = 12. Jika setiap pencerapan ditambah 3, berapakah varians baharu?", options: ["12", "15", "9", "36"], answerIndex: 0, solution: "Bagi serakan (varians, sisihan piawai), operasi tambah atau tolak tidak memberi kesan kepada serakan data. Varians kekal 12." },
+            { bab: "Bab 7: Sukatan Serakan Data Terkumpul", question: "Jumlah kekerapan 80. Kedudukan Kuartil Ketiga (Q3) pada ogif terletak pada kekerapan ke-berapa?", options: ["20", "40", "60", "75"], answerIndex: 2, solution: "Kuartil Ketiga ialah nilai pada 3/4 daripada jumlah kekerapan.<br>Q3 = 3/4 x 80 = Nilai ke-60." },
+            { bab: "Bab 7: Sukatan Serakan Data Terkumpul", question: "Satu set data terpencil (sangat besar) digugurkan. Apakah kesannya kepada sisihan piawai yang baharu?", options: ["Bertambah", "Berkurang", "Sama sahaja", "Menjadi sifar"], answerIndex: 1, solution: "Data terpencil menyebabkan serakan menjadi lebar. Apabila ia dibuang, data menjadi lebih tertumpu rapat, menyebabkan sisihan piawai berkurang." }
+        ]
+    };
+
+    window.showModal = (title, message) => {
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-message').innerHTML = message;
+        document.getElementById('modal').classList.remove('hidden');
+    };
+    window.closeModal = () => {
+        document.getElementById('modal').classList.add('hidden');
+    };
+
+    const contentDiv = document.getElementById('app-content');
+
+    async function initAuth() {
+        if (!auth) {
+            isFirebaseReady = false;
+            renderRoleSelect();
+            return;
+        }
+        try {
+            await signInAnonymously(auth);
+            isFirebaseReady = true;
+            renderRoleSelect();
+        } catch (error) {
+            isFirebaseReady = false;
+            renderRoleSelect(); 
+        }
+    }
+
+    function renderRoleSelect() {
+        contentDiv.innerHTML = `
+            <div class="w-full max-w-sm fade-in text-center">
+                <h3 class="text-xl font-bold text-gray-800 mb-6">Pilih Peranan Anda:</h3>
+                <div class="space-y-4">
+                    <button onclick="window.appNav('student-login')" class="w-full bg-blue-500 text-white p-4 rounded-xl font-bold text-lg btn-hover-effect flex items-center justify-center gap-3">
+                        <i class="fas fa-user-graduate"></i> Murid (Mula Kuiz)
+                    </button>
+                    <button onclick="window.appNav('teacher-login')" class="w-full bg-school-gold text-white p-4 rounded-xl font-bold text-lg btn-hover-effect flex items-center justify-center gap-3">
+                        <i class="fas fa-chalkboard-teacher"></i> Guru (Semak Markah)
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderTeacherLogin() {
+        contentDiv.innerHTML = `
+            <div class="w-full max-w-sm fade-in">
+                <button onclick="window.appNav('role-select')" class="text-gray-500 hover:text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="fas fa-arrow-left"></i> Kembali
+                </button>
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">Semakan Guru</h3>
+                <p class="text-gray-600 mb-6 text-sm">Masukkan e-mel anda untuk mengambil data markah murid.</p>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2">E-mel Berdaftar</label>
+                        <input type="email" id="t-email" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-school-blue" placeholder="cikgu@sekolah.edu.my">
+                    </div>
+                    <button onclick="window.processTeacherLogin()" class="w-full bg-school-blue text-white p-3 rounded-lg font-bold btn-hover-effect mt-2">
+                        Papar Rekod
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    window.processTeacherLogin = async () => {
+        const email = document.getElementById('t-email').value.trim();
+        if (!email) {
+            showModal("Ralat", "Sila masukkan e-mel.");
+            return;
+        }
+        State.teacher.email = email;
+        
+        if (!isFirebaseReady || !auth.currentUser) {
+            showModal("Amaran", "Tidak dapat bersambung ke pangkalan data awan.");
+            return;
+        }
+
+        contentDiv.innerHTML = `<div class="text-school-blue flex flex-col items-center"><i class="fas fa-spinner fa-spin fa-3x mb-4"></i><p>Menyemak pelayan...</p></div>`;
+        
+        try {
+            const q = collection(db, 'artifacts', appId, 'public', 'data', 'scores');
+            const snapshot = await getDocs(q);
+            let results = [];
+            snapshot.forEach((doc) => {
+                let data = doc.data();
+                if(data.teacherEmail && data.teacherEmail.toLowerCase() === email.toLowerCase()) results.push(data);
+            });
+            results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            renderTeacherDashboard(results);
+        } catch (error) {
+            showModal("Ralat", "Gagal memuat turun data.");
+            renderTeacherLogin();
+        }
+    };
+
+    function renderTeacherDashboard(results) {
+        let rows = '';
+        if (results.length === 0) {
+            rows = `<tr><td colspan="4" class="text-center py-4 text-gray-500">Tiada rekod untuk e-mel ini.</td></tr>`;
+        } else {
+            results.forEach(r => {
+                const date = new Date(r.timestamp).toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
+                rows += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3">${r.studentName} <br><span class="text-xs text-gray-500">${r.className}</span></td>
+                        <td class="p-3 font-semibold">${r.level}</td>
+                        <td class="p-3 font-bold text-school-blue">${r.score}/${r.total}</td>
+                        <td class="p-3 text-sm text-gray-500">${date}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        contentDiv.innerHTML = `
+            <div class="w-full max-w-2xl fade-in flex flex-col h-full">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold text-gray-800"><i class="fas fa-chart-bar text-school-blue mr-2"></i>Rekod Pencapaian T5</h3>
+                    <button onclick="window.appNav('role-select')" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-300">Keluar</button>
+                </div>
+                
+                <div class="overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-sm max-h-[300px] overflow-y-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-100 text-gray-700 sticky top-0">
+                            <tr>
+                                <th class="p-3 border-b">Murid</th>
+                                <th class="p-3 border-b">Tahap</th>
+                                <th class="p-3 border-b">Markah</th>
+                                <th class="p-3 border-b">Tarikh</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderStudentLogin() {
+        contentDiv.innerHTML = `
+            <div class="w-full max-w-sm fade-in">
+                <button onclick="window.appNav('role-select')" class="text-gray-500 hover:text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="fas fa-arrow-left"></i> Kembali
+                </button>
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">Pendaftaran Murid</h3>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-1">Nama Penuh</label>
+                        <input type="text" id="s-name" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-school-blue" value="${State.student.name}">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-1">Kelas (Contoh: 5 STEM)</label>
+                        <input type="text" id="s-class" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-school-blue" value="${State.student.className}">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-1">E-mel Guru Matematik Anda</label>
+                        <input type="email" id="s-teacher" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-school-blue" value="${State.student.teacherEmail}">
+                    </div>
+                    <button onclick="window.processStudentLogin()" class="w-full bg-blue-500 text-white p-3 rounded-lg font-bold btn-hover-effect mt-2 text-lg">
+                        Mula <i class="fas fa-play ml-1"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    window.processStudentLogin = () => {
+        const name = document.getElementById('s-name').value.trim();
+        const cls = document.getElementById('s-class').value.trim();
+        const teacher = document.getElementById('s-teacher').value.trim();
+
+        if (!name || !cls || !teacher) {
+            showModal("Perhatian", "Lengkapkan semua kotak untuk meneruskan.");
+            return;
+        }
+
+        State.student.name = name;
+        State.student.className = cls;
+        State.student.teacherEmail = teacher;
+        window.appNav('level-select');
+    };
+
+    function renderLevelSelect() {
+        contentDiv.innerHTML = `
+            <div class="w-full max-w-md fade-in text-center">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">Pilih Aras Kesukaran</h3>
+                    <button onclick="window.appNav('student-login')" class="text-sm text-gray-500"><i class="fas fa-edit"></i> Profil</button>
+                </div>
+                <p class="text-sm text-gray-600 mb-4 bg-yellow-50 p-3 rounded border border-yellow-200">
+                    Setiap aras mengandungi <b>21 soalan</b> (3 soalan untuk setiap Bab 1 hingga Bab 7).
+                </p>
+                <div class="space-y-4">
+                    <button onclick="window.startLevel('Level 1')" class="w-full bg-green-500 text-white p-4 rounded-xl font-bold text-lg btn-hover-effect shadow-md flex justify-between items-center">
+                        <span>Tahap 1: Asas (Senang)</span> <i class="fas fa-star text-green-200"></i>
+                    </button>
+                    <button onclick="window.startLevel('Level 2')" class="w-full bg-blue-500 text-white p-4 rounded-xl font-bold text-lg btn-hover-effect shadow-md flex justify-between items-center">
+                        <span>Tahap 2: Sederhana</span> <i class="fas fa-star-half-alt text-blue-200"></i>
+                    </button>
+                    <button onclick="window.startLevel('Level 3')" class="w-full bg-red-500 text-white p-4 rounded-xl font-bold text-lg btn-hover-effect shadow-md flex justify-between items-center">
+                        <span>Tahap 3: KBAT (Sukar)</span> <i class="fas fa-fire text-red-200"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    window.startLevel = (levelStr) => {
+        State.currentLevel = levelStr;
+        State.currentQIndex = 0;
+        State.score = 0;
+        renderGameplay();
+    };
+
+    window.renderGameplay = function() {
+        State.isAnswered = false;
+        const questions = QuizData[State.currentLevel];
+        const qData = questions[State.currentQIndex];
+        const totalQ = questions.length;
+        const qNum = State.currentQIndex + 1;
+
+        let optionsHTML = '';
+        const labels = ['A', 'B', 'C', 'D'];
+        
+        qData.options.forEach((opt, idx) => {
+            optionsHTML += `
+                <button id="opt-${idx}" onclick="window.checkMcqAnswer(${idx})" class="option-btn w-full text-left p-4 rounded-lg bg-gray-50 mb-3 text-gray-800 flex items-start gap-3 shadow-sm">
+                    <span class="font-bold bg-white border border-gray-300 rounded w-8 h-8 flex items-center justify-center shrink-0">${labels[idx]}</span>
+                    <span class="mt-1">${opt}</span>
+                </button>
+            `;
+        });
+
+        let lvlColor = State.currentLevel === 'Level 1' ? 'text-green-600 bg-green-100' : 
+                       State.currentLevel === 'Level 2' ? 'text-blue-600 bg-blue-100' : 'text-red-600 bg-red-100';
+
+        contentDiv.innerHTML = `
+            <div class="w-full max-w-2xl fade-in flex flex-col h-full">
+                <!-- Status Bar -->
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <span class="px-3 py-1 rounded-full text-xs font-bold ${lvlColor} shadow-sm border">${State.currentLevel}</span>
+                    <span class="text-sm font-bold text-school-blue bg-blue-50 px-3 py-1 rounded-full border border-blue-100">Soalan: ${qNum} / ${totalQ}</span>
+                </div>
+                
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
+                    <div class="bg-school-gold h-2 rounded-full transition-all duration-500" style="width: ${(qNum / totalQ) * 100}%"></div>
+                </div>
+                
+                <!-- Soalan & Label Topik -->
+                <div class="mb-4 bg-white p-6 rounded-xl border border-gray-100 shadow-sm relative">
+                    <span class="absolute top-0 right-0 bg-blue-500 text-white text-xs px-3 py-1 rounded-bl-lg rounded-tr-xl font-bold">
+                        ${qData.bab}
+                    </span>
+                    <h3 class="text-lg text-gray-800 leading-relaxed mt-4 font-medium">${qData.question}</h3>
+                </div>
+                
+                <!-- Kawasan Pilihan -->
+                <div id="input-container" class="mb-2">
+                    ${optionsHTML}
+                </div>
+                
+                <!-- Kawasan Penyelesaian -->
+                <div id="solution-container" class="hidden mt-auto bg-blue-50 p-5 rounded-xl border border-blue-200 shadow-inner mb-4">
+                    <h4 class="font-bold text-school-blue mb-2 flex items-center"><i class="fas fa-laptop-code text-yellow-500 mr-2 fa-lg"></i> Jalan Kira / Konsep:</h4>
+                    <p class="text-gray-700 text-sm leading-relaxed" id="solution-text"></p>
+                </div>
+
+                <button id="next-btn" onclick="window.nextQuestion()" class="hidden w-full bg-school-blue text-white p-4 rounded-xl font-bold text-lg btn-hover-effect mt-4 shadow-md">
+                    Seterusnya <i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    window.checkMcqAnswer = (selectedIndex) => {
+        if (State.isAnswered) return;
+        State.isAnswered = true;
+        
+        const qData = QuizData[State.currentLevel][State.currentQIndex];
+        const correctIndex = qData.answerIndex;
+        
+        for(let i=0; i<4; i++) {
+            const btn = document.getElementById(`opt-${i}`);
+            btn.disabled = true;
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
+        }
+
+        const selectedBtn = document.getElementById(`opt-${selectedIndex}`);
+        const correctBtn = document.getElementById(`opt-${correctIndex}`);
+        
+        if (selectedIndex === correctIndex) {
+            State.score++;
+            selectedBtn.classList.replace('bg-gray-50', 'option-correct');
+            selectedBtn.classList.replace('opacity-70', 'opacity-100');
+            selectedBtn.querySelector('span:first-child').innerHTML = `<i class="fas fa-check"></i>`;
+            selectedBtn.querySelector('span:first-child').classList.replace('bg-white', 'bg-green-200');
+            selectedBtn.querySelector('span:first-child').classList.add('text-green-800');
+        } else {
+            selectedBtn.classList.replace('bg-gray-50', 'option-wrong');
+            selectedBtn.classList.replace('opacity-70', 'opacity-100');
+            selectedBtn.querySelector('span:first-child').innerHTML = `<i class="fas fa-times"></i>`;
+            selectedBtn.querySelector('span:first-child').classList.replace('bg-white', 'bg-red-200');
+            selectedBtn.querySelector('span:first-child').classList.add('text-red-800');
+            
+            correctBtn.classList.replace('bg-gray-50', 'option-correct');
+            correctBtn.classList.replace('opacity-70', 'opacity-100');
+            correctBtn.classList.add('ring-2', 'ring-green-500');
+        }
+
+        // Tunjuk penyelesaian
+        const solContainer = document.getElementById('solution-container');
+        document.getElementById('solution-text').innerHTML = qData.solution;
+        solContainer.classList.remove('hidden');
+        solContainer.classList.add('fade-in');
+
+        const nextBtn = document.getElementById('next-btn');
+        const totalQ = QuizData[State.currentLevel].length;
+        if (State.currentQIndex === totalQ - 1) {
+             nextBtn.innerHTML = `Selesai & Lihat Keputusan <i class="fas fa-flag-checkered ml-2"></i>`;
+             nextBtn.classList.replace('bg-school-blue', 'bg-school-gold');
+        }
+        nextBtn.classList.remove('hidden');
+    };
+
+    window.nextQuestion = () => {
+        const totalQ = QuizData[State.currentLevel].length;
+        if (State.currentQIndex < totalQ - 1) {
+            State.currentQIndex++;
+            renderGameplay();
+        } else {
+            renderResult();
+        }
+    };
+
+    async function renderResult() {
+        const totalQ = QuizData[State.currentLevel].length;
+        const percentage = Math.round((State.score / totalQ) * 100);
+        
+        let feedbackMsg = percentage >= 80 ? "Hebat! Penguasaan Tingkatan 5 yang cemerlang." : 
+                          percentage >= 50 ? "Sederhana. Teruskan buat ulang kaji." : 
+                                             "Baca nota semula dan cuba lagi nanti!";
+
+        contentDiv.innerHTML = `
+            <div class="w-full max-w-sm fade-in text-center flex flex-col items-center">
+                <i class="fas fa-medal fa-4x text-school-gold mb-4 drop-shadow-md"></i>
+                <h2 class="text-3xl font-bold text-gray-800 mb-1">Tamat!</h2>
+                <p class="text-gray-600 mb-6 font-medium">${State.currentLevel} (Bab 1 - Bab 7)</p>
+                
+                <div class="bg-gray-50 p-6 rounded-2xl border-2 border-gray-100 w-full mb-4 shadow-sm">
+                    <p class="text-sm text-gray-500 mb-1 uppercase tracking-widest font-bold">Skor Keseluruhan</p>
+                    <p class="text-6xl font-extrabold text-school-blue mb-2">${State.score}<span class="text-3xl text-gray-400">/${totalQ}</span></p>
+                    <p class="text-lg font-bold ${percentage >= 50 ? 'text-green-500' : 'text-red-500'}">${percentage}%</p>
+                </div>
+                <p class="font-medium text-gray-700 italic">${feedbackMsg}</p>
+                
+                <div id="save-status" class="text-sm text-school-blue mt-4 mb-4 font-semibold flex items-center justify-center gap-2">
+                    <i class="fas fa-circle-notch fa-spin"></i> Sedang hantar markah kepada cikgu...
+                </div>
+
+                <div class="w-full space-y-3 mt-2">
+                    <button onclick="window.shareWhatsApp()" class="w-full bg-[#25D366] text-white p-3 rounded-lg font-bold hover:bg-green-600 transition flex items-center justify-center gap-2 shadow-sm">
+                        <i class="fab fa-whatsapp text-xl"></i> WhatsApp Keputusan Ke Guru
+                    </button>
+                    <button onclick="window.appNav('level-select')" class="w-full bg-white border-2 border-school-blue text-school-blue p-3 rounded-lg font-bold hover:bg-blue-50 transition shadow-sm">
+                        Main Tahap Lain
+                    </button>
+                </div>
+            </div>
+        `;
+
+        await submitScoreToCloud(totalQ);
+    }
+
+    async function submitScoreToCloud(totalQ) {
+        const statusDiv = document.getElementById('save-status');
+        if (!isFirebaseReady || !auth.currentUser) {
+            statusDiv.innerHTML = `<i class="fas fa-exclamation-triangle text-yellow-500"></i> Markah tidak direkod ke awan (offline).`;
+            statusDiv.className = "text-sm text-yellow-600 mt-4 mb-4 font-semibold flex items-center justify-center gap-2";
+            return;
+        }
+
+        try {
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'scores'), {
+                studentName: State.student.name,
+                className: State.student.className,
+                teacherEmail: State.student.teacherEmail,
+                level: State.currentLevel,
+                score: State.score,
+                total: totalQ,
+                timestamp: new Date().toISOString()
+            });
+            statusDiv.innerHTML = `<i class="fas fa-check-circle text-green-500"></i> Markah telah dihantar kepada guru.`;
+            statusDiv.className = "text-sm text-green-600 mt-4 mb-4 font-semibold flex items-center justify-center gap-2";
+        } catch (error) {
+            statusDiv.innerHTML = `<i class="fas fa-times-circle text-red-500"></i> Ralat menghantar markah.`;
+            statusDiv.className = "text-sm text-red-600 mt-4 mb-4 font-semibold flex items-center justify-center gap-2";
+        }
+    }
+
+    window.shareWhatsApp = () => {
+        const totalQ = QuizData[State.currentLevel].length;
+        const perc = Math.round((State.score/totalQ)*100);
+        const msg = `Salam Cikgu. Saya ${State.student.name} dari kelas ${State.student.className} telah menamatkan Ulangkaji Matematik Tingkatan 5 (Bab 1-7).\n\n*Tahap:* ${State.currentLevel}\n*Skor:* ${State.score}/${totalQ} (${perc}%)\n\nTerima kasih Cikgu!`;
+        const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+        window.open(waUrl, '_blank');
+    };
+
+    window.appNav = (viewStr) => {
+        State.view = viewStr;
+        switch(viewStr) {
+            case 'role-select': renderRoleSelect(); break;
+            case 'teacher-login': renderTeacherLogin(); break;
+            case 'student-login': renderStudentLogin(); break;
+            case 'level-select': renderLevelSelect(); break;
+        }
+    };
+
+    window.onload = initAuth;
+
+</script>
+</body>
+</html>
